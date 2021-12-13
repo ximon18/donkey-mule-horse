@@ -1,0 +1,12 @@
+[package]
+edition = "2021"
+name = "donkey-mule-horse"
+version = "0.1.0"
+
+[dependencies]
+ip_network = "0.4"
+ip_network_table = "0.2"
+num-format = "0.4"
+ptree = "0.4"
+routecore = "0.1"
+time-graph = { version = "0.1", features = ["table"] }
