@@ -119,6 +119,13 @@ mod tests {
         time_graph::enable_data_collection(true);
 
         let mut tree = DonkeyTrie::<String>::new();
+        let mut table = ip_network_table::IpNetworkTable::new();
+        let strides = vec![4, 4, 4, 4, 4, 4, 4, 4];
+        let mut tree_bitmap: trie::treebitmap_univec::TreeBitMap<u32, trie::common::NoMeta> =
+            trie::treebitmap_univec::TreeBitMap::new(strides.clone());
+        let mut trie = trie::simpletrie::TrieNode::new(false);
+        type StoreType = rotonda_store::InMemStorage<u32, rotonda_store::common::NoMeta>;
+        let mut rotonda_store = rotonda_store::TreeBitMap::<StoreType>::new(strides);
 
         println!("Loading... ");
         let start = Instant::now();
@@ -137,17 +144,80 @@ mod tests {
         let parsing_time = start.elapsed();
         let record_count = data.len();
 
-        println!("Building tree...");
+        println!("Inserting: DonkeyTrie ...");
         for item_result in &data {
             let item = item_result.as_ref().unwrap();
             insert_RISwhois_IPv4_item(item, &mut tree).unwrap();
         }
 
-        let mut table = ip_network_table::IpNetworkTable::new();
+        println!("Inserting: ip_network_table ...");
         for item_result in &data {
             let prefix = item_result.as_ref().unwrap().prefix;
             let network = ip_network::IpNetwork::new(prefix.addr(), prefix.len()).unwrap();
             let _ = table.insert(network, "foo");
+        }
+
+        println!("Inserting: trie::TreeBitMap ...");
+        for item_result in &data {
+            let prefix = item_result.as_ref().unwrap().prefix;
+            if let IpAddr::V4(ipv4) = prefix.addr() {
+                let bits = u32::from_be_bytes(ipv4.octets());
+                let trie_prefix = trie::common::Prefix::new(bits, prefix.len());
+                tree_bitmap.insert(trie_prefix);
+            }
+        }
+
+        fn simpletrie_push(
+            mut cursor: &mut trie::simpletrie::TrieNode,
+            pfx: trie::simpletrie::Prefix<trie::simpletrie::NoMeta>,
+        ) {
+            let mut first_bit = pfx.net;
+            let mut built_prefix: u32 = 0;
+
+            for _ in 0..pfx.len {
+                match first_bit.leading_ones() {
+                    0 => {
+                        if !cursor.left.is_some() {
+                            cursor.left = Some(Box::new(trie::simpletrie::TrieNode::new(false)))
+                        };
+                        built_prefix = built_prefix << 1;
+                        cursor = cursor.left.as_deref_mut().unwrap();
+                    }
+                    1..=32 => {
+                        if !cursor.right.is_some() {
+                            cursor.right = Some(Box::new(trie::simpletrie::TrieNode::new(false)));
+                        }
+                        cursor = cursor.right.as_deref_mut().unwrap();
+                        built_prefix = built_prefix << 1 | 1;
+                    }
+                    _ => {
+                        panic!("illegal prefix encountered. Giving up.");
+                    }
+                }
+                first_bit = first_bit << 1;
+            }
+
+            cursor.prefix = true;
+        }
+
+        println!("Inserting: trie::simpletrie ...");
+        for item_result in &data {
+            let prefix = item_result.as_ref().unwrap().prefix;
+            if let IpAddr::V4(ipv4) = prefix.addr() {
+                let bits = u32::from_be_bytes(ipv4.octets());
+                let simpletrie_prefix = trie::simpletrie::Prefix::new(bits, prefix.len());
+                simpletrie_push(&mut trie, simpletrie_prefix);
+            }
+        }
+
+        println!("Inserting: rotonda_store::TreeBitMap ...");
+        for item_result in &data {
+            let prefix = item_result.as_ref().unwrap().prefix;
+            if let IpAddr::V4(ipv4) = prefix.addr() {
+                let bits = u32::from_be_bytes(ipv4.octets());
+                let rotonda_prefix = rotonda_store::common::Prefix::new(bits, prefix.len());
+                rotonda_store.insert(rotonda_prefix).unwrap();
+            }
         }
 
         #[time_graph::instrument]
@@ -158,8 +228,99 @@ mod tests {
             table.longest_match(prefix.addr()).unwrap()
         }
 
+        #[time_graph::instrument]
+        fn treebitmap_longest_match<'a, AF, T>(
+            tree_bitmap: &'a trie::treebitmap_univec::TreeBitMap<AF, T>,
+            prefix: &trie::common::Prefix<AF, trie::common::NoMeta>,
+        ) -> Vec<&'a trie::common::Prefix<AF, T>>
+        where
+            AF: trie::common::AddressFamily + From<u32>,
+            T: std::fmt::Debug,
+        {
+            tree_bitmap.match_longest_prefix(prefix)
+        }
+
+        #[time_graph::instrument]
+        pub fn simple_trie_longest_matching_prefix<'a>(
+            search_pfx: &'a trie::simpletrie::Prefix<trie::simpletrie::NoMeta>,
+            trie: &'a trie::simpletrie::TrieNode,
+        ) -> trie::simpletrie::Prefix<trie::simpletrie::NoMeta> {
+            let mut cursor: &'a trie::simpletrie::TrieNode = trie;
+            let mut cursor_pfx: u32 = 0;
+            let mut match_pfx: u32 = 0;
+            let mut match_len = 0;
+            let mut first_bit = search_pfx.net;
+
+            for i in 1..=search_pfx.len {
+                match first_bit.leading_ones() {
+                    0 => {
+                        if cursor.left.is_some() {
+                            cursor = cursor.left.as_deref().unwrap();
+                            cursor_pfx = cursor_pfx << 1;
+                            if cursor.prefix == true {
+                                match_pfx = cursor_pfx;
+                                match_len = i;
+                                // println!(
+                                //     "lmp less-specific: {:?}/{}",
+                                //     std::net::Ipv4Addr::from(match_pfx << (32 - match_len)),
+                                //     match_len
+                                // );
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    b if b >= 1 => {
+                        if cursor.right.is_some() {
+                            cursor = cursor.right.as_deref().unwrap();
+                            cursor_pfx = cursor_pfx << 1 | 1;
+                            if cursor.prefix == true {
+                                match_pfx = cursor_pfx;
+                                match_len = i;
+                                // println!(
+                                //     "lmp less-specific: {:?}/{}",
+                                //     std::net::Ipv4Addr::from(match_pfx << (32 - match_len)),
+                                //     match_len
+                                // );
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    _ => {
+                        panic!("illegal prefix encountered. Giving up.");
+                    }
+                }
+                first_bit = first_bit << 1;
+            }
+
+            if match_len > 0 {
+                trie::simpletrie::Prefix::new(match_pfx << (32 - match_len), match_len)
+            } else {
+                trie::simpletrie::Prefix::new(0, 0)
+            }
+        }
+
+        #[time_graph::instrument]
+        fn rotonda_store_longest_match<'a>(
+            rotonda_store: &'a rotonda_store::TreeBitMap<StoreType>,
+            prefix: &rotonda_store::common::Prefix<u32, rotonda_store::common::NoMeta>,
+        ) -> rotonda_store::QueryResult<
+            'a,
+            rotonda_store::InMemStorage<u32, rotonda_store::common::NoMeta>,
+        > {
+            rotonda_store.match_prefix(
+                prefix,
+                &rotonda_store::MatchOptions {
+                    match_type: rotonda_store::MatchType::LongestMatch,
+                    include_less_specifics: false,
+                    include_more_specifics: true,
+                },
+            )
+        }
+
         // testing
-        println!("Finding longest matching prefixes");
+        println!("Finding and comparing longest matching prefixes:");
         for item in &data {
             let item = item.as_ref().unwrap();
             let prefix = item.prefix;
@@ -169,7 +330,83 @@ mod tests {
                 let (our_prefix, our_len, _) = tree.longest_match(bits, len).unwrap();
                 let our_prefix = Prefix::new_v4(Ipv4Addr::from(our_prefix), our_len).unwrap();
                 let (their_prefix, _) = alt_longest_match(&table, &prefix);
-                assert_eq!(their_prefix.to_string(), our_prefix.to_string());
+                assert_eq!(their_prefix.to_string(), our_prefix.to_string(), "Our DonkeyTrie LMP search for '{}' doesn't agree with the ip_network_table crate", prefix);
+
+                let mut more_specific = false;
+                let rotonda_store_search_prefix =
+                    rotonda_store::common::Prefix::new(bits, prefix.len());
+                let rotonda_store_prefix =
+                    rotonda_store_longest_match(&rotonda_store, &rotonda_store_search_prefix);
+                let rotonda_store_prefix_str = match (
+                    &rotonda_store_prefix.prefix,
+                    &rotonda_store_prefix.more_specifics,
+                ) {
+                    (Some(exact), None) => format!("{:?}", exact).replace(" with None", ""),
+                    (Some(exact), Some(more)) => {
+                        let mut r = vec![*exact];
+                        r.extend_from_slice(more.as_slice());
+                        let search_prefix = if let IpAddr::V4(ipv4) = their_prefix.network_address()
+                        {
+                            let bits = u32::from_be_bytes(ipv4.octets());
+                            rotonda_store::common::Prefix::new(bits, their_prefix.netmask())
+                        } else {
+                            unimplemented!()
+                        };
+                        if r.contains(&&search_prefix) {
+                            more_specific = true;
+                            their_prefix.to_string()
+                        } else {
+                            "0.0.0.0/0".to_string()
+                        }
+                    }
+                    _ => "0.0.0.0/0".to_string(),
+                };
+                assert_eq!(their_prefix.to_string(), rotonda_store_prefix_str, "Our Rotonda Store LMP search for '{}' doesn't agree with the ip_network_table crate (our full answer was: {:?})", prefix, rotonda_store_prefix);
+
+                // match against ip_network_table only if the result is considered by Rotonda Store to be an exact match
+                // otherwise match against the exact match that Rotonda Store found, because neither the treebitmap or
+                // simple trie stores report a more specific as the result of a longest matching prefix search, so just
+                // check that they agree with Rotonda Store instead.
+                let expected_prefix_str = if more_specific {
+                    let exact = rotonda_store_prefix.prefix.unwrap();
+                    format!("{:?}", exact).replace(" with None", "")
+                } else {
+                    their_prefix.to_string()
+                };
+
+                let trie_search_prefix = trie::common::Prefix::new(bits, prefix.len());
+                let trie_prefix = treebitmap_longest_match(&tree_bitmap, &trie_search_prefix);
+                let trie_prefix_str = if trie_prefix.is_empty() {
+                    "0.0.0.0/0".to_string()
+                } else {
+                    format!("{:?}", trie_prefix[trie_prefix.len() - 1]).replace(" with None", "")
+                };
+                assert_eq!(
+                    expected_prefix_str,
+                    trie_prefix_str,
+                    "trie::BitMapTree LMP search for '{}' doesn't agree with the {}",
+                    prefix,
+                    if more_specific {
+                        "Rotonda Store"
+                    } else {
+                        "ip_network_table crate"
+                    }
+                );
+
+                let trie_search_prefix = trie::simpletrie::Prefix::new(bits, prefix.len());
+                let trie_prefix = simple_trie_longest_matching_prefix(&trie_search_prefix, &trie);
+                let trie_prefix_str = format!("{:?}", trie_prefix).replace(" -> None", "");
+                assert_eq!(
+                    expected_prefix_str,
+                    trie_prefix_str,
+                    "trie::simpletrie LMP search for '{}' doesn't agree with the {}",
+                    prefix,
+                    if more_specific {
+                        "Rotonda Store"
+                    } else {
+                        "ip_network_table crate"
+                    }
+                );
             }
         }
 
@@ -187,6 +424,21 @@ mod tests {
         let their_search = graph
             .spans()
             .filter(|&s| s.callsite.name() == "alt_longest_match")
+            .next()
+            .unwrap();
+        let rotonda_store_search = graph
+            .spans()
+            .filter(|&s| s.callsite.name() == "rotonda_store_longest_match")
+            .next()
+            .unwrap();
+        let treebitmap_search = graph
+            .spans()
+            .filter(|&s| s.callsite.name() == "treebitmap_longest_match")
+            .next()
+            .unwrap();
+        let simple_trie_search = graph
+            .spans()
+            .filter(|&s| s.callsite.name() == "simple_trie_longest_matching_prefix")
             .next()
             .unwrap();
 
@@ -302,7 +554,7 @@ mod tests {
 
         let mean_ours = our_search.elapsed.as_secs_f32() / (our_search.called as f32);
         let ops_per_sec_by_mean_ours = (1.0 / mean_ours).floor() as u64;
-        println!("  search: (binary tree)");
+        println!("  search: (my binary trie)");
         println!(
             "    count        : {}",
             our_search.called.to_formatted_string(&Locale::en)
@@ -328,6 +580,54 @@ mod tests {
                 .as_nanos()
                 .to_formatted_string(&Locale::en),
             ops_per_sec_by_mean_theirs.to_formatted_string(&Locale::en)
+        );
+
+        let mean_simple_trie =
+            simple_trie_search.elapsed.as_secs_f32() / (simple_trie_search.called as f32);
+        let ops_per_sec_by_mean_simple_trie = (1.0 / mean_simple_trie).floor() as u64;
+        println!("  search: (try-tries-and-trees simple trie)");
+        println!(
+            "    count        : {}",
+            simple_trie_search.called.to_formatted_string(&Locale::en)
+        );
+        println!(
+            "    mean time    : {} nanoseconds ({} QPS)",
+            Duration::from_secs_f32(mean_simple_trie)
+                .as_nanos()
+                .to_formatted_string(&Locale::en),
+            ops_per_sec_by_mean_simple_trie.to_formatted_string(&Locale::en)
+        );
+
+        let mean_treebitmap =
+            treebitmap_search.elapsed.as_secs_f32() / (treebitmap_search.called as f32);
+        let ops_per_sec_by_mean_treebitmap = (1.0 / mean_treebitmap).floor() as u64;
+        println!("  search: (try-tries-and-trees treebitmap 4,4,4,4,4,4,4,4 strides)");
+        println!(
+            "    count        : {}",
+            treebitmap_search.called.to_formatted_string(&Locale::en)
+        );
+        println!(
+            "    mean time    : {} nanoseconds ({} QPS)",
+            Duration::from_secs_f32(mean_treebitmap)
+                .as_nanos()
+                .to_formatted_string(&Locale::en),
+            ops_per_sec_by_mean_treebitmap.to_formatted_string(&Locale::en)
+        );
+
+        let mean_rotonda_store =
+            rotonda_store_search.elapsed.as_secs_f32() / (rotonda_store_search.called as f32);
+        let ops_per_sec_by_mean_rotonda_store = (1.0 / mean_rotonda_store).floor() as u64;
+        println!("  search: (rotonda_store::0.2.0 rev 70beea86 TreeBitMap in-memory 4,4,4,4,4,4,4,4 strides)");
+        println!(
+            "    count        : {}",
+            rotonda_store_search.called.to_formatted_string(&Locale::en)
+        );
+        println!(
+            "    mean time    : {} nanoseconds ({} QPS)",
+            Duration::from_secs_f32(mean_rotonda_store)
+                .as_nanos()
+                .to_formatted_string(&Locale::en),
+            ops_per_sec_by_mean_rotonda_store.to_formatted_string(&Locale::en)
         );
     }
 
