@@ -674,4 +674,16 @@ mod tests {
             Err(format!("Prefix '{}' is not IPv4", item.prefix))
         }
     }
+
+    #[test]
+    fn test_strides() {
+        let mut t = donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3, 3, 3, 3, 3, 3, 3, 3, 4, 4]);
+        println!("{:?}", t);
+        t.push(0b01000000_00000000_00000000_00000000, 2);
+        t.push(0b10000000_00000000_00000000_00000000, 2);
+        t.push(0b11000000_00000000_00000000_00000000, 3);
+        t.push(0b00000000_00000000_00000000_00000000, 3);
+        t.push(0b11100000_00000000_00000000_00000000, 3);
+        println!("{:?}", t);
+    }
 }
