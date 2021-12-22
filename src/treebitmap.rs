@@ -296,7 +296,7 @@ where
             let mut bit_string = String::new();
             let mut num_bytes = 0;
             for byte in iter {
-                bit_string.push_str(&format!("{:b}", byte));
+                bit_string.push_str(&format!("{:0>8b}", byte));
                 num_bytes += 1;
             }
             let num_bits = num_bytes << 3;
