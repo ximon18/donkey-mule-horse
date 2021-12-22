@@ -120,6 +120,12 @@ mod tests {
         let mut trie = trie::simpletrie::TrieNode::new(false);
         type StoreType = rotonda_store::InMemStorage<u32, rotonda_store::common::NoMeta>;
         let mut rotonda_store = rotonda_store::TreeBitMap::<StoreType>::new(strides);
+        // let mut my_tree_bitmap =
+        //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3, 3, 3, 3, 3, 3, 3, 3, 4, 4]);
+        let mut my_tree_bitmap =
+            donkey_mule_horse::treebitmap::TreeBitMap::new(vec![4,4,4,4,4,4,4,4]);
+        // let mut my_tree_bitmap =
+        //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![5,5,5,5,5,5,2]);
 
         println!("Loading... ");
         let start = Instant::now();
@@ -211,6 +217,15 @@ mod tests {
                 let bits = u32::from_be_bytes(ipv4.octets());
                 let rotonda_prefix = rotonda_store::common::Prefix::new(bits, prefix.len());
                 rotonda_store.insert(rotonda_prefix).unwrap();
+            }
+        }
+
+        println!("Inserting: my TreeBitMap ...");
+        for item_result in &data {
+            let prefix = item_result.as_ref().unwrap().prefix;
+            if let IpAddr::V4(ipv4) = prefix.addr() {
+                let bits = u32::from_be_bytes(ipv4.octets());
+                my_tree_bitmap.push(bits, prefix.len());
             }
         }
 
@@ -623,6 +638,8 @@ mod tests {
                 .to_formatted_string(&Locale::en),
             ops_per_sec_by_mean_rotonda_store.to_formatted_string(&Locale::en)
         );
+
+        println!("my tree bitmap: statistics: {:?}", my_tree_bitmap.statistics());
     }
 
     #[allow(non_snake_case)]
@@ -671,12 +688,14 @@ mod tests {
 
     #[test]
     fn test_strides() {
-        let mut t = donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3, 3, 3, 3, 3, 3, 3, 3, 4, 4]);
+        let mut t =
+            donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3, 3, 3, 3, 3, 3, 3, 3, 4, 4]);
         println!("{:?}", t);
         t.push(0b01000000_00000000_00000000_00000000, 2);
         t.push(0b10000000_00000000_00000000_00000000, 2);
         t.push(0b11000000_00000000_00000000_00000000, 3);
         t.push(0b00000000_00000000_00000000_00000000, 3);
+        t.push(0b11011000_00000000_00000000_00000000, 5);
         t.push(0b11100000_00000000_00000000_00000000, 3);
         println!("{:?}", t);
     }

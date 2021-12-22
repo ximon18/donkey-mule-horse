@@ -136,7 +136,41 @@ impl VariableSizeStrideNode {
                 0b11110000_00000000_00000000_00000000 => (30, 15),
                 _ => unreachable!(),
             },
-            5 if stride_size >= 5 => unimplemented!(),
+            5 if stride_size >= 5 => match bits & 0b11111000_00000000_00000000_00000000 {
+                0b00000000_00000000_00000000_00000000 => (31, 0),
+                0b00001000_00000000_00000000_00000000 => (32, 1),
+                0b00010000_00000000_00000000_00000000 => (33, 2),
+                0b00011000_00000000_00000000_00000000 => (34, 3),
+                0b00100000_00000000_00000000_00000000 => (35, 4),
+                0b00101000_00000000_00000000_00000000 => (36, 5),
+                0b00110000_00000000_00000000_00000000 => (37, 6),
+                0b00111000_00000000_00000000_00000000 => (38, 7),
+                0b01000000_00000000_00000000_00000000 => (39, 8),
+                0b01001000_00000000_00000000_00000000 => (40, 9),
+                0b01010000_00000000_00000000_00000000 => (41, 10),
+                0b01011000_00000000_00000000_00000000 => (42, 11),
+                0b01100000_00000000_00000000_00000000 => (43, 12),
+                0b01101000_00000000_00000000_00000000 => (44, 13),
+                0b01110000_00000000_00000000_00000000 => (45, 14),
+                0b01111000_00000000_00000000_00000000 => (46, 15),
+                0b10000000_00000000_00000000_00000000 => (47, 16),
+                0b10001000_00000000_00000000_00000000 => (48, 17),
+                0b10010000_00000000_00000000_00000000 => (49, 18),
+                0b10011000_00000000_00000000_00000000 => (50, 19),
+                0b10100000_00000000_00000000_00000000 => (51, 20),
+                0b10101000_00000000_00000000_00000000 => (52, 21),
+                0b10110000_00000000_00000000_00000000 => (53, 22),
+                0b10111000_00000000_00000000_00000000 => (54, 23),
+                0b11000000_00000000_00000000_00000000 => (55, 24),
+                0b11001000_00000000_00000000_00000000 => (56, 25),
+                0b11010000_00000000_00000000_00000000 => (57, 26),
+                0b11011000_00000000_00000000_00000000 => (58, 27),
+                0b11100000_00000000_00000000_00000000 => (59, 28),
+                0b11101000_00000000_00000000_00000000 => (60, 29),
+                0b11110000_00000000_00000000_00000000 => (61, 30),
+                0b11111000_00000000_00000000_00000000 => (62, 31),
+                _ => unreachable!(),
+            },
             6 if stride_size >= 6 => unimplemented!(),
             7 if stride_size >= 7 => unimplemented!(),
             8 if stride_size >= 8 => unimplemented!(),
@@ -234,14 +268,18 @@ where
     }
 
     pub fn add_child_node(&mut self, bit_idx: usize, node_idx: usize) {
-        let insert_idx = self.ptrbitarr.count_ones_upto(bit_idx) - 1;
-        self.ptrvec.insert(insert_idx, node_idx);
+        if !self.ptrbitarr.set_bit(bit_idx) {
+            let insert_idx = self.ptrbitarr.count_ones_upto(bit_idx) - 1;
+            self.ptrvec.insert(insert_idx, node_idx);
+        } else {
+            panic!("Attempted to add child node but ptrbitarr is already set at bit idx {}", bit_idx);
+        }
     }
 
     pub fn get_child_node_idx(&mut self, bit_idx: usize) -> Option<usize> {
-        if self.ptrbitarr.set_bit(bit_idx) {
+        if self.ptrbitarr.bit_set(bit_idx) {
             let idx = self.ptrbitarr.count_ones_upto(bit_idx) - 1;
-            Some(self.ptrbitarr[idx].into())
+            Some(self.ptrvec[idx].into())
         } else {
             None
         }
@@ -275,8 +313,14 @@ where
 }
 
 trait PfxBitArrayOps<const T: usize> {
+    /// Is the specified bit set?
     fn bit_set(&self, bit_idx: usize) -> bool;
+
+    /// Set the bit at the specified 0-based counting from the left bit index.
+    /// Returns true if the bit was already set, false otherwise.
     fn set_bit(&mut self, bit_idx: usize) -> bool;
+
+    /// Count the number of leading ones upto and including the specified 0-based counting from the left bit index.
     fn count_ones_upto(&self, bit_idx: usize) -> usize;
 }
 
@@ -288,8 +332,6 @@ impl<const T: usize> PfxBitArrayOps<T> for [u8; T] {
         self[byte_idx] & mask != 0
     }
 
-    // Set the bit at the specified 0-based counting from the left bit index.
-    // Returns true if the bit was already set, false otherwise.
     fn set_bit(&mut self, bit_idx: usize) -> bool {
         let byte_idx = bit_idx >> 3;
         let shift_by = bit_idx % 8;
@@ -299,11 +341,10 @@ impl<const T: usize> PfxBitArrayOps<T> for [u8; T] {
         val != 0
     }
 
-    // Count the number of leading ones upto and including the specified 0-based counting from the left bit index.
     fn count_ones_upto(&self, bit_idx: usize) -> usize {
         let mut num_ones: usize = 0;
 
-        let max_byte_idx = (bit_idx - 1) >> 3;
+        let max_byte_idx = bit_idx >> 3;
         let bit_idx = bit_idx % 8;
 
         for byte in self.iter().take(max_byte_idx) {
@@ -391,6 +432,10 @@ impl TreeBitMap {
         }
     }
 
+    pub fn statistics(&self) -> (usize, usize) {
+        (self.nodes.len(), self.prefixes.len())
+    }
+
     pub fn push(&mut self, bits: u32, len: u8) {
         let prefix = Prefix::new_v4(Ipv4Addr::from(bits), len).unwrap();
         self.prefixes.push(prefix);
@@ -421,24 +466,20 @@ impl TreeBitMap {
 
                 if remaining_pfx_len <= stride_size {
                     // Set the pfxbitarr bit if not set. If we set it, insert the prefix node idx into pfxvec.
-                    eprintln!("Adding prefix idx {}", prefix_idx);
                     self.nodes[node_idx].add_prefix(pfxbitarr_bit_idx, prefix_idx);
                 } else {
                     // The prefix cannot be stored at this depth of the tree, move down.
                     // Does a child node for the remaining prefix bits of this stride exist?
                     depth += 1;
-                    eprintln!("Checking for child node [remaining_pfx_len: {}, ptrbitarr_bit_idx: {}, stride_size: {}]", remaining_pfx_len, ptrbitarr_bit_idx, stride_size);
                     node_idx = if let Some(node_idx) =
                         self.nodes[node_idx].get_child_node_idx(ptrbitarr_bit_idx)
                     {
-                        eprintln!("Ascending to child node idx {}", node_idx);
                         node_idx
                     } else {
                         let new_node = VariableSizeStrideNode::new(self.strides[depth].into());
                         self.nodes.push(new_node);
                         let new_node_idx = self.nodes.len() - 1;
                         self.nodes[node_idx].add_child_node(ptrbitarr_bit_idx, new_node_idx);
-                        eprintln!("Ascending to NEW child node idx {}", new_node_idx);
                         new_node_idx
                     };
                 }
