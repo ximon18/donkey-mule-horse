@@ -15,22 +15,68 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    use donkey_mule_horse::trie::{DonkeyTrie, DonkeyTrieNode};
+    use donkey_mule_horse::{trie::{DonkeyTrie, DonkeyTrieNode}, treebitmap::VariableSizeStrideNode};
     use num_format::{Locale, ToFormattedString};
     use routecore::addr::Prefix;
 
     #[test]
-    fn donkey_binary_trie_with_sample_data() {
+    fn donkey_binary_trie_with_blog_data() {
         let mut tree = DonkeyTrie::<String>::new();
         tree.push(0b01u32 << 30, 2).set_meta("[01]".to_string());
         tree.push(0b10u32 << 30, 2).set_meta("[10]".to_string());
-        tree.push(0b000u32 << 29, 3).set_meta("[000]".to_string());
         tree.push(0b110u32 << 29, 3).set_meta("[110]".to_string());
+        tree.push(0b000u32 << 29, 3).set_meta("[000]".to_string());
+        tree.push(0b11001u32 << 27, 5).set_meta("[11001]".to_string());
         tree.push(0b111u32 << 29, 3).set_meta("[111]".to_string());
-        tree.push(0b11001u32 << 27, 5)
-            .set_meta("[11001]".to_string());
 
         tree.print();
+    }
+
+    #[test]
+    fn donkey_tree_bitmap_with_blog_data() {
+        // The first two strides must be size 3 to match the setup used in the blog article, the rest don't matter as
+        // we should only end up using the first two, but whatever the other stride sizes are the total must be 32.
+        let mut tree = donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3,3,8,8,8,2]);
+        tree.push(0b01u32 << 30, 2);
+        tree.push(0b10u32 << 30, 2);
+        tree.push(0b110u32 << 29, 3);
+        tree.push(0b000u32 << 29, 3);
+        tree.push(0b11001u32 << 27, 5);
+        tree.push(0b111u32 << 29, 3);
+
+        println!("{:?}", tree);
+
+        // Expect the data structure to match that shown in the tree bitmap diagram in the "Pointer free" section of
+        // Jaspers' blog article
+        assert_eq!(tree.nodes.len(), 2);
+        assert_eq!(tree.prefixes.len(), 6);
+
+        assert_eq!(tree.nodes[0].stride_size(), 3);
+        if let VariableSizeStrideNode::Size3(node) = &tree.nodes[0] {
+            assert_eq!(node.ptrbitarr.len(), 1); // 8-bit
+            assert_eq!(node.ptrbitarr[0], 0b00000010u8);
+            assert_eq!(node.ptrvec.len(), 1);
+            assert_eq!(node.ptrvec, [1]);
+
+            assert_eq!(node.pfxbitarr.len(), 2); // 16-bit
+            assert_eq!(node.pfxbitarr[0], 0b00001101u8);
+            assert_eq!(node.pfxbitarr[1], 0b00000110u8);
+            assert_eq!(node.pfxvec.len(), 5);
+            assert_eq!(node.pfxvec, [0,1,3,2,5]);
+        }
+
+        assert_eq!(tree.nodes[1].stride_size(), 3);
+        if let VariableSizeStrideNode::Size3(node) = &tree.nodes[1] {
+            assert_eq!(node.ptrbitarr.len(), 1); // 8-bit
+            assert_eq!(node.ptrbitarr[0], 0b00000000u8);
+            assert_eq!(node.ptrvec.len(), 0);
+
+            assert_eq!(node.pfxbitarr.len(), 2); // 16-bit
+            assert_eq!(node.pfxbitarr[0], 0b00001000u8);
+            assert_eq!(node.pfxbitarr[1], 0b00000000u8);
+            assert_eq!(node.pfxvec.len(), 1);
+            assert_eq!(node.pfxvec, [4]);
+        }
     }
 
     // See: https://en.wikipedia.org/wiki/Longest_prefix_match
@@ -122,10 +168,14 @@ mod tests {
         let mut rotonda_store = rotonda_store::TreeBitMap::<StoreType>::new(strides);
         // let mut my_tree_bitmap =
         //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3, 3, 3, 3, 3, 3, 3, 3, 4, 4]);
-        let mut my_tree_bitmap =
-            donkey_mule_horse::treebitmap::TreeBitMap::new(vec![4,4,4,4,4,4,4,4]);
+        // let mut my_tree_bitmap =
+        //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![4,4,4,4,4,4,4,4]);
         // let mut my_tree_bitmap =
         //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![5,5,5,5,5,5,2]);
+        let mut my_tree_bitmap =
+            donkey_mule_horse::treebitmap::TreeBitMap::new(vec![8,8,8,8]);
+        // let mut my_tree_bitmap =
+        //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3,4,4,6,7,8]);
 
         println!("Loading... ");
         let start = Instant::now();
