@@ -151,6 +151,22 @@ mod tests2 {
         assert_eq!(sn.get_matching_bitarr_indices(0b01000000_00000000_00000000_00000000u32, 2), (4, 1));
         assert_eq!(sn.get_matching_bitarr_indices(0b10000000_00000000_00000000_00000000u32, 2), (5, 2));
         assert_eq!(sn.get_matching_bitarr_indices(0b11000000_00000000_00000000_00000000u32, 2), (6, 3));
+
+        // For stride size 3 the (a, b) values we expect can be compared to the diagram above.
+        // (a, b) denotes (pfxbitarr bit index, ptrbitarr bit index).
+        // E.g. (10, 3) refers to bit 10 (counting from zero from the left) in pfxbitarr which represents bucket 011,
+        // which is correct for the test input value of 0b011....u32.
+        // Likewise the 3 refers to bit 3 (counting from zero from the left) in ptrbitarr which also represents bucket
+        // 011 but this time in the _ptr_ bit array rather than the _pfx_ bit array.
+        let sn = VariableSizeStrideNode::new(3);
+        assert_eq!(sn.get_matching_bitarr_indices(0b00000000_00000000_00000000_00000000u32, 3), (7, 0));
+        assert_eq!(sn.get_matching_bitarr_indices(0b00100000_00000000_00000000_00000000u32, 3), (8, 1));
+        assert_eq!(sn.get_matching_bitarr_indices(0b01000000_00000000_00000000_00000000u32, 3), (9, 2));
+        assert_eq!(sn.get_matching_bitarr_indices(0b01100000_00000000_00000000_00000000u32, 3), (10, 3));
+        assert_eq!(sn.get_matching_bitarr_indices(0b10000000_00000000_00000000_00000000u32, 3), (11, 4));
+        assert_eq!(sn.get_matching_bitarr_indices(0b10100000_00000000_00000000_00000000u32, 3), (12, 5));
+        assert_eq!(sn.get_matching_bitarr_indices(0b11000000_00000000_00000000_00000000u32, 3), (13, 6));
+        assert_eq!(sn.get_matching_bitarr_indices(0b11100000_00000000_00000000_00000000u32, 3), (14, 7));
     }
 }
 
