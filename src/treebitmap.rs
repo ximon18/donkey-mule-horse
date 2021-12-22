@@ -179,31 +179,20 @@ where
     [u8; max(1, 2 << T >> 3)]: Sized,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ptrbitarr_bits = String::new();
-        for byte in self.ptrbitarr {
-            ptrbitarr_bits.push_str(&format!("{:b}", byte));
+        fn format_bit_arr(iter: std::slice::Iter<u8>) -> String {
+            let mut bit_string = String::new();
+            let mut num_bytes = 0;
+            for byte in iter {
+                bit_string.push_str(&format!("{:b}", byte));
+                num_bytes += 1;
+            }
+            let num_bits = num_bytes << 3;
+            format!("{:0>width$}", &bit_string, width = num_bits)
         }
-        let mut pfxbitarr_bits = String::new();
-        for byte in self.pfxbitarr {
-            pfxbitarr_bits.push_str(&format!("{:b}", byte));
-        }
+
         f.debug_struct("StrideNode")
-            .field(
-                "ptrbitarr",
-                &format_args!(
-                    "{:0>width$}",
-                    &ptrbitarr_bits,
-                    width = self.ptrbitarr.len() << 3
-                ),
-            )
-            .field(
-                "pfxbitarr",
-                &format_args!(
-                    "{:0>width$}",
-                    &pfxbitarr_bits,
-                    width = self.pfxbitarr.len() << 3
-                ),
-            )
+            .field("ptrbitarr", &format_bit_arr(self.ptrbitarr.iter()))
+            .field("pfxbitarr", &format_bit_arr(self.pfxbitarr.iter()))
             .field("ptrvec", &self.ptrvec)
             .field("pfxvec", &self.pfxvec)
             .finish()
