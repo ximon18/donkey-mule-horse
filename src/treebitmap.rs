@@ -222,14 +222,14 @@ where
     [u8; max(1, 2 << (T - 1) >> 3)]: Sized,
     [u8; max(1, 2 << T >> 3)]: Sized,
 {
-    ptrbitarr: [u8; max(1, 2 << (T - 1) >> 3)],
-    pfxbitarr: [u8; max(1, 2 << T >> 3)],
+    pub ptrbitarr: [u8; max(1, 2 << (T - 1) >> 3)],
+    pub pfxbitarr: [u8; max(1, 2 << T >> 3)],
 
     // Use usize node indices because we index into a global node array held by the tree which may hold a large
     // number of prefixes. If we instead each node had its own collections of referenced nodes and prefixes we
     // could use a much smaller index value type, but would then have to do more memory management on tree updates.
-    ptrvec: Vec<usize>,
-    pfxvec: Vec<usize>,
+    pub ptrvec: Vec<usize>,
+    pub pfxvec: Vec<usize>,
 }
 
 impl<const T: usize> Default for StrideNode<T>
@@ -415,8 +415,8 @@ mod tests {
 #[derive(Debug)]
 pub struct TreeBitMap {
     strides: Vec<u8>,
-    nodes: Vec<VariableSizeStrideNode>,
-    prefixes: Vec<Prefix>, // (prefix ipv4, prefix len)
+    pub nodes: Vec<VariableSizeStrideNode>,
+    pub prefixes: Vec<Prefix>, // (prefix ipv4, prefix len)
 }
 
 impl TreeBitMap {
