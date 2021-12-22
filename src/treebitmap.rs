@@ -223,8 +223,8 @@ impl<const T: usize> PfxBitArrayOps<T> for [u8; T] {
         let max_byte_idx = (bit_idx - 1) >> 3;
         let bit_idx = bit_idx % 8;
 
-        for byte_idx in 0..max_byte_idx {
-            let count = self[byte_idx].count_ones() as usize;
+        for byte in self.iter().take(max_byte_idx) {
+            let count = byte.count_ones() as usize;
             num_ones += count;
         }
 
