@@ -21,17 +21,15 @@ pub enum VariableSizeStrideNode {
 
 macro_rules! with_node {
     ($self:ident => $member_fn:ident ( $( $arg:ident ),* )) => {
-        {
-            match $self {
-                VariableSizeStrideNode::Size1(sized_node) => sized_node.$member_fn($($arg),*),
-                VariableSizeStrideNode::Size2(sized_node) => sized_node.$member_fn($($arg),*),
-                VariableSizeStrideNode::Size3(sized_node) => sized_node.$member_fn($($arg),*),
-                VariableSizeStrideNode::Size4(sized_node) => sized_node.$member_fn($($arg),*),
-                VariableSizeStrideNode::Size5(sized_node) => sized_node.$member_fn($($arg),*),
-                VariableSizeStrideNode::Size6(sized_node) => sized_node.$member_fn($($arg),*),
-                VariableSizeStrideNode::Size7(sized_node) => sized_node.$member_fn($($arg),*),
-                VariableSizeStrideNode::Size8(sized_node) => sized_node.$member_fn($($arg),*),
-            }
+        match $self {
+            VariableSizeStrideNode::Size1(sized_node) => sized_node.$member_fn($($arg),*),
+            VariableSizeStrideNode::Size2(sized_node) => sized_node.$member_fn($($arg),*),
+            VariableSizeStrideNode::Size3(sized_node) => sized_node.$member_fn($($arg),*),
+            VariableSizeStrideNode::Size4(sized_node) => sized_node.$member_fn($($arg),*),
+            VariableSizeStrideNode::Size5(sized_node) => sized_node.$member_fn($($arg),*),
+            VariableSizeStrideNode::Size6(sized_node) => sized_node.$member_fn($($arg),*),
+            VariableSizeStrideNode::Size7(sized_node) => sized_node.$member_fn($($arg),*),
+            VariableSizeStrideNode::Size8(sized_node) => sized_node.$member_fn($($arg),*),
         }
     };
 }
