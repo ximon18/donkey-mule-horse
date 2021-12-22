@@ -1,3 +1,9 @@
+/// Based on: https://blog.nlnetlabs.nl/donkeys-mules-horses/#pointerfree
+/// An implementaton of a variable sized stride tree bitmap using nightly Rust support for const generics to represent
+/// stride size dependent pfx and ptr bit arrays as fixed length byte arrays whose length is fixed at compile time for
+/// the stride size being represented. It is likely more efficient to use different sized types instead of variable
+/// numbers of bytes, e.g. use u64 instead of [u8; 8], so this is just an experimental approach, it is not expected to
+/// be fast enough for production use.
 use std::net::Ipv4Addr;
 
 use routecore::addr::Prefix;
