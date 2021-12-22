@@ -1,29 +1,23 @@
-use routecore::addr::Prefix;
-
-use donkey_mule_horse::trie::DonkeyTrie;
-
-#[derive(Debug)]
-struct RisWhoisDumpIpv4Item {
-    origin: u32,
-    prefix: Prefix,
-    n_ris_peers: u16,
-}
-
 pub fn main() {}
 
 #[cfg(test)]
 mod tests {
+    #[derive(Debug)]
+    struct RisWhoisDumpIpv4Item {
+        origin: u32,
+        prefix: Prefix,
+        n_ris_peers: u16,
+    }
+
     use std::{
         net::{IpAddr, Ipv4Addr},
         str::FromStr,
         time::{Duration, Instant},
     };
 
-    use donkey_mule_horse::trie::DonkeyTrieNode;
+    use donkey_mule_horse::trie::{DonkeyTrie, DonkeyTrieNode};
     use num_format::{Locale, ToFormattedString};
     use routecore::addr::Prefix;
-
-    use super::*;
 
     #[test]
     fn donkey_binary_trie_with_sample_data() {

@@ -10,7 +10,7 @@ pub struct DonkeyTrieNode<T: Clone> {
 impl<T: Clone> DonkeyTrieNode<T> {
     fn visit<F>(&self, depth: usize, callback: &mut F)
     where
-        F: FnMut(&DonkeyTrieNode<T>, usize) -> (),
+        F: FnMut(&DonkeyTrieNode<T>, usize),
     {
         (callback)(self, depth);
         if let Some(node) = &self.left {
@@ -84,8 +84,14 @@ impl<T: Clone> Default for DonkeyTrieNode<T> {
     }
 }
 
-pub struct DonkeyTrie<T: Clone> {
+pub struct DonkeyTrie<T: Clone + std::fmt::Display> {
     root: Box<DonkeyTrieNode<T>>,
+}
+
+impl<T: Clone + std::fmt::Display> Default for DonkeyTrie<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T: Clone + std::fmt::Display> DonkeyTrie<T> {
@@ -107,6 +113,7 @@ impl<T: Clone + std::fmt::Display> DonkeyTrie<T> {
         let bits = bits & u32::MAX << (32 - len);
 
         // create mask with the leftmost bit set
+        #[allow(clippy::unusual_byte_groupings)]
         let mut mask: u32 = 0b10000000_00000000_00000000_00000000;
 
         for _ in 0..len {
@@ -133,7 +140,7 @@ impl<T: Clone + std::fmt::Display> DonkeyTrie<T> {
 
     pub fn visit<F>(&self, callback: &mut F)
     where
-        F: FnMut(&DonkeyTrieNode<T>, usize) -> (),
+        F: FnMut(&DonkeyTrieNode<T>, usize),
     {
         self.root.visit(0, callback)
     }
@@ -166,6 +173,7 @@ impl<T: Clone + std::fmt::Display> DonkeyTrie<T> {
         let mut node = &self.root;
 
         // create mask with the leftmost bit set
+        #[allow(clippy::unusual_byte_groupings)]
         let mut mask: u32 = 0b10000000_00000000_00000000_00000000;
 
         // start with an empty IPv4 addr and build it up as we go

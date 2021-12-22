@@ -1,4 +1,4 @@
-use std::{net::Ipv4Addr, sync::mpsc::TryRecvError};
+use std::net::Ipv4Addr;
 
 use routecore::addr::Prefix;
 
@@ -146,6 +146,16 @@ where
     // could use a much smaller index value type, but would then have to do more memory management on tree updates.
     ptrvec: Vec<usize>,
     pfxvec: Vec<usize>,
+}
+
+impl<const T: usize> Default for StrideNode<T>
+where
+    [u8; max(1, 2 << (T - 1) >> 3)]: Sized,
+    [u8; max(1, 2 << T >> 3)]: Sized,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<const T: usize> StrideNode<T>
