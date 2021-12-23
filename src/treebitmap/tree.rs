@@ -114,9 +114,6 @@ impl TreeBitMap {
                 // Is the pfxbitarr set indicating that this node contains the prefix and thus our search is
                 // finished?
                 if let Some(prefix_idx) = node.get_prefix_node_idx(pfxbitarr_idx) {
-                    // let found_prefix_len = i + sub_len;
-                    // let found_prefix = prefix_addr & (u32::MAX << (32 - found_prefix_len));
-                    // return Some((found_prefix, found_prefix_len));
                     let prefix = &self.prefixes[prefix_idx];
                     if let Some(current_best_prefix) = best_prefix {
                         // if more specific than the last best match but still less or as specific as the search prefix
