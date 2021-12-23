@@ -439,9 +439,7 @@ impl TreeBitMap {
         let prefix_idx = self.prefixes.len() - 1;
 
         // Walk the tree inserting the bits of the prefix sequentially into the tree in pieces sized according to the
-        // stride length supported by each level of the tree. In this version of the code we only support strides of
-        // length 3, so we insert the first 3 bits of the prefix into the first level of the tree, and the next 3 bits
-        // into the next level of the tree, and so on.
+        // stride length supported by each level of the tree.
         let mut node_idx = 0;
         let len = usize::from(len);
         let mut depth = 0;
