@@ -1,5 +1,5 @@
 /// IPv4 only variable stride tree bitmap in-memory prefix store.
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 
 use routecore::addr::Prefix;
 
@@ -38,6 +38,7 @@ impl TreeBitMap {
         (self.nodes.len(), self.prefixes.len())
     }
 
+    #[time_graph::instrument(name = "donkey_tree_bitmap_push")]
     pub fn push(&mut self, bits: u32, len: u8) {
         let prefix = Prefix::new_v4(Ipv4Addr::from(bits), len).unwrap();
         self.prefixes.push(prefix);
@@ -61,8 +62,9 @@ impl TreeBitMap {
                 let stride_size = self.nodes[node_idx].stride_size();
                 let remaining_pfx_len = len - i;
                 let pfx_len_in_stride = stride_size.min(remaining_pfx_len);
+
                 let (pfxbitarr_bit_idx, ptrbitarr_bit_idx) =
-                    self.nodes[node_idx].get_matching_bitarr_indices(bits, pfx_len_in_stride);
+                self.nodes[node_idx].get_matching_bitarr_indices(bits, pfx_len_in_stride);
 
                 if remaining_pfx_len <= stride_size {
                     // Set the pfxbitarr bit if not set. If we set it, insert the prefix node idx into pfxvec.
@@ -92,6 +94,64 @@ impl TreeBitMap {
             }
         }
     }
+
+    #[time_graph::instrument(name = "donkey_tree_bitmap_longest_match")]
+    pub fn longest_match(&mut self, prefix_addr: u32, prefix_len: u8) -> Option<(u32, u8)> {
+        // Walk the tree upto prefix_len bits of prefix deep looking for the longest exact match
+        let mut node = &self.nodes[0];
+        let mut bits = prefix_addr;
+        let mut i = 1;
+        let mut depth = 0;
+        let mut best_prefix: Option<&Prefix> = None;
+
+        while i <= prefix_len {
+            let last_i = i;
+            let stride_size = node.stride_size() as u8;
+            let pfx_len_in_stride = stride_size.min(prefix_len - i + 1);
+            for sub_len in (1..=pfx_len_in_stride).rev() {
+                let (pfxbitarr_idx, ptrbitarr_idx) =
+                    node.get_matching_bitarr_indices(bits, sub_len as usize);
+
+                // Is the pfxbitarr set indicating that this node contains the prefix and thus our search is
+                // finished?
+                if let Some(prefix_idx) = node.get_prefix_node_idx(pfxbitarr_idx) {
+                    // let found_prefix_len = i + sub_len;
+                    // let found_prefix = prefix_addr & (u32::MAX << (32 - found_prefix_len));
+                    // return Some((found_prefix, found_prefix_len));
+                    let prefix = &self.prefixes[prefix_idx];
+                    if let Some(current_best_prefix) = best_prefix {
+                        // if more specific than the last best match but still less or as specific as the search prefix
+                        if prefix.len() > current_best_prefix.len() && prefix.len() <= prefix_len {
+                            best_prefix = Some(prefix);
+                        }
+                    } else {
+                        best_prefix = Some(prefix);
+                    }
+                }
+
+                // Is the ptrbitarr bit set? If so we must ascend the tree to pursue this prefix
+                if let Some(node_idx) = node.get_child_node_idx(ptrbitarr_idx) {
+                    node = &self.nodes[node_idx];
+                    i += sub_len;
+                    bits <<= sub_len;
+                    depth += 1;
+                    break;
+                }
+            }
+
+            if last_i == i {
+                break;
+            }
+        }
+
+        if let Some(prefix) = best_prefix {
+            if let IpAddr::V4(addr) = prefix.addr() {
+                return Some((u32::from(addr), prefix.len()));
+            }
+        }
+
+        None
+    }
 }
 
 #[cfg(test)]
@@ -99,7 +159,7 @@ mod tests {
     use super::{TreeBitMap, VariableSizeStrideNode};
 
     #[test]
-    fn donkey_tree_bitmap_with_blog_data() {
+    fn compare_with_blog_article_data() {
         // The first two strides must be size 3 to match the setup used in the blog article, the rest don't matter as
         // we should only end up using the first two, but whatever the other stride sizes are the total must be 32.
         let mut tree = TreeBitMap::new(vec![3, 3, 8, 8, 8, 2]).unwrap();

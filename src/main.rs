@@ -1,3 +1,9 @@
+// Note to self on how to profile the code:
+// Create release mode test binary: cargo test --release -- tests::donkey_binary_trie_with_RISwhois_IPv4_data_full --exact --nocapture
+// Profile: valgrind --tool=callgrind --dump-instr=yes --collect-jumps=yes --simulate-cache=yes target/release/deps/donkey_mule_horse-3759fd37e5dd811b tests::donkey_binary_trie_with_RISwhois_IPv4_data_full --exact --nocapture
+// Analyze: callgrind_annotate callgrind.out.78649
+// Visualize: kcachegrind
+
 pub fn main() {}
 
 #[cfg(test)]
@@ -115,7 +121,7 @@ mod tests {
 
         let mut tree = DonkeyTrie::<String>::new();
         let mut table = ip_network_table::IpNetworkTable::new();
-        let strides = vec![4, 4, 4, 4, 4, 4, 4, 4];
+        let strides = vec![3, 3, 3, 3, 3, 3, 3, 3, 4, 4];
         let mut tree_bitmap: trie::treebitmap_univec::TreeBitMap<u32, trie::common::NoMeta> =
             trie::treebitmap_univec::TreeBitMap::new(strides.clone());
         let mut trie = trie::simpletrie::TrieNode::new(false);
@@ -131,7 +137,7 @@ mod tests {
         // let mut my_tree_bitmap =
         //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![5,5,5,5,5,5,2]);
         let mut my_tree_bitmap =
-            donkey_mule_horse::treebitmap::TreeBitMap::new(vec![8, 8, 8, 8]).unwrap();
+            donkey_mule_horse::treebitmap::TreeBitMap::new(strides.to_owned()).unwrap();
         // let mut my_tree_bitmap =
         //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3,4,4,6,7,8]);
 
@@ -395,7 +401,7 @@ mod tests {
                 // check that they agree with Rotonda Store instead.
                 let expected_prefix_str = if more_specific {
                     let exact = rotonda_store_prefix.prefix.unwrap();
-                    format!("{:?}", exact).replace(" with None", "")
+                    format!("{}", exact)
                 } else {
                     their_prefix.to_string()
                 };
@@ -433,13 +439,41 @@ mod tests {
                         "ip_network_table crate"
                     }
                 );
+
+                let result = my_tree_bitmap.longest_match(bits, prefix.len());
+                let my_tree_bitmap_prefix_str = if let Some((bits, len)) = result {
+                    format!("{}", Prefix::new(IpAddr::V4(Ipv4Addr::from(bits)), len).unwrap())
+                } else {
+                    "0.0.0.0/0".to_string()
+                };
+                assert_eq!(
+                    expected_prefix_str,
+                    my_tree_bitmap_prefix_str,
+                    "my_tree_bitmap LMP search for '{}' doesn't agree with the {}",
+                    prefix,
+                    if more_specific {
+                        "Rotonda Store"
+                    } else {
+                        "ip_network_table crate"
+                    }
+                );
             }
         }
 
         let graph = time_graph::get_full_graph();
-        let our_insert = graph
+        let donkey_trie_insert = graph
             .spans()
-            .filter(|&s| s.callsite.name() == "push")
+            .filter(|&s| s.callsite.name() == "donkey_trie_push")
+            .next()
+            .unwrap();
+        let rotonda_store_insert = graph
+            .spans()
+            .filter(|&s| s.callsite.name() == "rotonda_store_insert")
+            .next()
+            .unwrap();
+        let donkey_tree_bitmap_insert = graph
+            .spans()
+            .filter(|&s| s.callsite.name() == "donkey_tree_bitmap_push")
             .next()
             .unwrap();
         let our_search = graph
@@ -465,6 +499,11 @@ mod tests {
         let simple_trie_search = graph
             .spans()
             .filter(|&s| s.callsite.name() == "simple_trie_longest_matching_prefix")
+            .next()
+            .unwrap();
+        let donkey_tree_bitmap_search = graph
+            .spans()
+            .filter(|&s| s.callsite.name() == "donkey_tree_bitmap_longest_match")
             .next()
             .unwrap();
 
@@ -558,22 +597,65 @@ mod tests {
             "    record count : {}",
             record_count.to_formatted_string(&Locale::en)
         );
-        println!("  insertion:");
+        println!("  insertion: (my binary trie)");
         println!(
             "    total count  : {}",
-            our_insert.called.to_formatted_string(&Locale::en)
+            donkey_trie_insert.called.to_formatted_string(&Locale::en)
         );
         println!(
             "    total time   : {} milliseconds",
-            our_insert
+            donkey_trie_insert
                 .elapsed
                 .as_millis()
                 .to_formatted_string(&Locale::en)
         );
-        let mean_insert = our_insert.elapsed.as_secs_f32() / (our_insert.called as f32);
+        let donkey_trie_mean_insert =
+            donkey_trie_insert.elapsed.as_secs_f32() / (donkey_trie_insert.called as f32);
         println!(
             "    mean time    : {} nanoseconds",
-            Duration::from_secs_f32(mean_insert)
+            Duration::from_secs_f32(donkey_trie_mean_insert)
+                .as_nanos()
+                .to_formatted_string(&Locale::en)
+        );
+        println!("  insertion: (rotonda store)");
+        println!(
+            "    total count  : {}",
+            rotonda_store_insert.called.to_formatted_string(&Locale::en)
+        );
+        println!(
+            "    total time   : {} milliseconds",
+            rotonda_store_insert
+                .elapsed
+                .as_millis()
+                .to_formatted_string(&Locale::en)
+        );
+        let rotonda_store_mean_insert =
+            rotonda_store_insert.elapsed.as_secs_f32() / (rotonda_store_insert.called as f32);
+        println!(
+            "    mean time    : {} nanoseconds",
+            Duration::from_secs_f32(rotonda_store_mean_insert)
+                .as_nanos()
+                .to_formatted_string(&Locale::en)
+        );
+        println!("  insertion: (my tree bitmap)");
+        println!(
+            "    total count  : {}",
+            donkey_tree_bitmap_insert
+                .called
+                .to_formatted_string(&Locale::en)
+        );
+        println!(
+            "    total time   : {} milliseconds",
+            donkey_tree_bitmap_insert
+                .elapsed
+                .as_millis()
+                .to_formatted_string(&Locale::en)
+        );
+        let donkey_tree_bitmap_mean_insert = donkey_tree_bitmap_insert.elapsed.as_secs_f32()
+            / (donkey_tree_bitmap_insert.called as f32);
+        println!(
+            "    mean time    : {} nanoseconds",
+            Duration::from_secs_f32(donkey_tree_bitmap_mean_insert)
                 .as_nanos()
                 .to_formatted_string(&Locale::en)
         );
@@ -654,6 +736,22 @@ mod tests {
                 .as_nanos()
                 .to_formatted_string(&Locale::en),
             ops_per_sec_by_mean_rotonda_store.to_formatted_string(&Locale::en)
+        );
+
+        let mean_donkey_tree_bitmap =
+            donkey_tree_bitmap_search.elapsed.as_secs_f32() / (donkey_tree_bitmap_search.called as f32);
+        let ops_per_sec_by_mean_donkey_tree_bitmap = (1.0 / mean_donkey_tree_bitmap).floor() as u64;
+        println!("  search: (my tree bitmap)",);
+        println!(
+            "    count        : {}",
+            donkey_tree_bitmap_search.called.to_formatted_string(&Locale::en)
+        );
+        println!(
+            "    mean time    : {} nanoseconds ({} QPS)",
+            Duration::from_secs_f32(mean_donkey_tree_bitmap)
+                .as_nanos()
+                .to_formatted_string(&Locale::en),
+                ops_per_sec_by_mean_donkey_tree_bitmap.to_formatted_string(&Locale::en)
         );
 
         println!(

@@ -105,10 +105,19 @@ where
         }
     }
 
-    pub fn get_child_node_idx(&mut self, bit_idx: usize) -> Option<usize> {
+    pub fn get_child_node_idx(&self, bit_idx: usize) -> Option<usize> {
         if self.ptrbitarr.bit_set(bit_idx) {
             let idx = self.ptrbitarr.count_ones_upto(bit_idx) - 1;
             Some(self.ptrvec[idx].into())
+        } else {
+            None
+        }
+    }
+
+    pub fn get_prefix_node_idx(&self, bit_idx: usize) -> Option<usize> {
+        if self.pfxbitarr.bit_set(bit_idx) {
+            let idx = self.pfxbitarr.count_ones_upto(bit_idx) - 1;
+            Some(self.pfxvec[idx].into())
         } else {
             None
         }

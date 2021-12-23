@@ -101,7 +101,7 @@ impl<T: Clone + std::fmt::Display> DonkeyTrie<T> {
         }
     }
 
-    #[time_graph::instrument]
+    #[time_graph::instrument(name = "donkey_trie_push")]
     pub fn push(&mut self, bits: u32, len: u8) -> &mut Box<DonkeyTrieNode<T>> {
         if len == 0 {
             return &mut self.root;

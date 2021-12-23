@@ -84,10 +84,15 @@ impl VariableSizeStrideNode {
         with_node!(self => add_child_node(bit_idx, node_idx))
     }
 
-    pub fn get_child_node_idx(&mut self, bit_idx: usize) -> Option<usize> {
+    pub fn get_child_node_idx(&self, bit_idx: usize) -> Option<usize> {
         with_node!(self => get_child_node_idx(bit_idx))
     }
 
+    pub fn get_prefix_node_idx(&self, bit_idx: usize) -> Option<usize> {
+        with_node!(self => get_prefix_node_idx(bit_idx))
+    }
+
+    /// Returns (pfxbitarr idx, ptrbitarr idx) where each idx is 0-based counting from the left.
     pub fn get_matching_bitarr_indices(&self, bits: u32, len: usize) -> (usize, usize) {
         // Do the remaining prefix bits fit in this node and if so which pfxbitarr bucket needs to be ticked
         // to indicate that that prefix exists in this node?
