@@ -101,7 +101,6 @@ impl TreeBitMap {
         let mut node = &self.nodes[0];
         let mut bits = prefix_addr;
         let mut i = 1;
-        let mut depth = 0;
         let mut best_prefix: Option<&Prefix> = None;
 
         while i <= prefix_len {
@@ -134,7 +133,6 @@ impl TreeBitMap {
                     node = &self.nodes[node_idx];
                     i += sub_len;
                     bits <<= sub_len;
-                    depth += 1;
                     break;
                 }
             }
