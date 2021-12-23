@@ -17,6 +17,7 @@ mod tests {
 
     use donkey_mule_horse::trie::{DonkeyTrie, DonkeyTrieNode};
     use num_format::{Locale, ToFormattedString};
+    use rotonda_store::record::MessageRecord;
     use routecore::addr::Prefix;
 
     #[test]
@@ -118,8 +119,11 @@ mod tests {
         let mut tree_bitmap: trie::treebitmap_univec::TreeBitMap<u32, trie::common::NoMeta> =
             trie::treebitmap_univec::TreeBitMap::new(strides.clone());
         let mut trie = trie::simpletrie::TrieNode::new(false);
-        type StoreType = rotonda_store::InMemStorage<u32, rotonda_store::common::NoMeta>;
-        let mut rotonda_store = rotonda_store::TreeBitMap::<StoreType>::new(strides);
+        let mut rotonda_store = rotonda_store::SingleThreadedStore::<rotonda_store::PrefixAs>::new(
+            strides.to_owned(),
+            strides.to_owned(),
+        );
+
         // let mut my_tree_bitmap =
         //     donkey_mule_horse::treebitmap::TreeBitMap::new(vec![3, 3, 3, 3, 3, 3, 3, 3, 4, 4]);
         // let mut my_tree_bitmap =
@@ -214,13 +218,24 @@ mod tests {
             }
         }
 
+        #[time_graph::instrument]
+        fn rotonda_store_insert(
+            rotonda_store: &mut rotonda_store::SingleThreadedStore<rotonda_store::PrefixAs>,
+            rotonda_prefix: &Prefix,
+        ) {
+            rotonda_store
+                .insert(rotonda_prefix, rotonda_store::PrefixAs(0))
+                .unwrap();
+        }
+
         println!("Inserting: rotonda_store::TreeBitMap ...");
         for item_result in &data {
             let prefix = item_result.as_ref().unwrap().prefix;
             if let IpAddr::V4(ipv4) = prefix.addr() {
                 let bits = u32::from_be_bytes(ipv4.octets());
-                let rotonda_prefix = rotonda_store::common::Prefix::new(bits, prefix.len());
-                rotonda_store.insert(rotonda_prefix).unwrap();
+                let rotonda_prefix =
+                    Prefix::new(IpAddr::V4(Ipv4Addr::from(bits)), prefix.len()).unwrap();
+                rotonda_store_insert(&mut rotonda_store, &rotonda_prefix);
             }
         }
 
@@ -316,12 +331,9 @@ mod tests {
 
         #[time_graph::instrument]
         fn rotonda_store_longest_match<'a>(
-            rotonda_store: &'a rotonda_store::TreeBitMap<StoreType>,
-            prefix: &rotonda_store::common::Prefix<u32, rotonda_store::common::NoMeta>,
-        ) -> rotonda_store::QueryResult<
-            'a,
-            rotonda_store::InMemStorage<u32, rotonda_store::common::NoMeta>,
-        > {
+            rotonda_store: &'a rotonda_store::SingleThreadedStore<rotonda_store::PrefixAs>,
+            prefix: &Prefix,
+        ) -> rotonda_store::QueryResult<'a, rotonda_store::PrefixAs> {
             rotonda_store.match_prefix(
                 prefix,
                 &rotonda_store::MatchOptions {
@@ -347,21 +359,22 @@ mod tests {
 
                 let mut more_specific = false;
                 let rotonda_store_search_prefix =
-                    rotonda_store::common::Prefix::new(bits, prefix.len());
+                    Prefix::new(IpAddr::V4(Ipv4Addr::from(bits)), prefix.len()).unwrap();
                 let rotonda_store_prefix =
                     rotonda_store_longest_match(&rotonda_store, &rotonda_store_search_prefix);
                 let rotonda_store_prefix_str = match (
                     &rotonda_store_prefix.prefix,
                     &rotonda_store_prefix.more_specifics,
                 ) {
-                    (Some(exact), None) => format!("{:?}", exact).replace(" with None", ""),
+                    (Some(exact), None) => format!("{}", exact), //.replace(" with None", ""),
                     (Some(exact), Some(more)) => {
                         let mut r = vec![*exact];
-                        r.extend_from_slice(more.as_slice());
+                        r.extend(more.iter().map(|x| x.key()));
                         let search_prefix = if let IpAddr::V4(ipv4) = their_prefix.network_address()
                         {
                             let bits = u32::from_be_bytes(ipv4.octets());
-                            rotonda_store::common::Prefix::new(bits, their_prefix.netmask())
+                            Prefix::new(IpAddr::V4(Ipv4Addr::from(bits)), their_prefix.netmask())
+                                .unwrap()
                         } else {
                             unimplemented!()
                         };
@@ -630,7 +643,7 @@ mod tests {
         let mean_rotonda_store =
             rotonda_store_search.elapsed.as_secs_f32() / (rotonda_store_search.called as f32);
         let ops_per_sec_by_mean_rotonda_store = (1.0 / mean_rotonda_store).floor() as u64;
-        println!("  search: (rotonda_store::0.2.0 rev 70beea86 TreeBitMap in-memory 4,4,4,4,4,4,4,4 strides)");
+        println!("  search: (rotonda_store)",);
         println!(
             "    count        : {}",
             rotonda_store_search.called.to_formatted_string(&Locale::en)
