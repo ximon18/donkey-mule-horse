@@ -2,4 +2,4 @@ This repository contains some very rough experimentation with Rust implementatio
 
 This is just a learning playground for myself, it is not intended to be used in deployed applications.
 
-The repository is named after the https://github.com/NLnetLabs/try-tries-and-trees/ repository.
+The repository is named after the https://blog.nlnetlabs.nl/donkeys-mules-horses/ article.
