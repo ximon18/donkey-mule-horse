@@ -218,6 +218,7 @@ dependencies = [
 name = "donkey-mule-horse"
 version = "0.1.0"
 dependencies = [
+ "fixedbitset",
  "ip_network",
  "ip_network_table",
  "num-format",

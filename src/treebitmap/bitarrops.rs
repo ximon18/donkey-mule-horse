@@ -1,3 +1,5 @@
+// TODO: Consider using https://docs.rs/fixedbitset/0.4.0/fixedbitset/struct.FixedBitSet.html
+
 pub trait PfxBitArrayOps<const T: usize> {
     /// Is the specified bit set?
     fn bit_set(&self, bit_idx: usize) -> bool;

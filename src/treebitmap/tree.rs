@@ -173,30 +173,22 @@ mod tests {
         assert_eq!(tree.prefixes.len(), 6);
 
         assert_eq!(tree.nodes[0].stride_size(), 3);
-        if let VariableSizeStrideNode::Size3(node) = &tree.nodes[0] {
-            assert_eq!(node.ptrbitarr.len(), 1); // 8-bit
-            assert_eq!(node.ptrbitarr[0], 0b00000010u8);
-            assert_eq!(node.ptrvec.len(), 1);
-            assert_eq!(node.ptrvec, [1]);
+        let node = &tree.nodes[0];
+        assert_eq!(format!("{:b}", node.ptrbitarr), "00000010");
+        assert_eq!(node.ptrvec.len(), 1);
+        assert_eq!(node.ptrvec, [1]);
 
-            assert_eq!(node.pfxbitarr.len(), 2); // 16-bit
-            assert_eq!(node.pfxbitarr[0], 0b00001101u8);
-            assert_eq!(node.pfxbitarr[1], 0b00000110u8);
-            assert_eq!(node.pfxvec.len(), 5);
-            assert_eq!(node.pfxvec, [0, 1, 3, 2, 5]);
-        }
+        assert_eq!(format!("{:b}", node.pfxbitarr), "0000110100000110");
+        assert_eq!(node.pfxvec.len(), 5);
+        assert_eq!(node.pfxvec, [0, 1, 3, 2, 5]);
 
         assert_eq!(tree.nodes[1].stride_size(), 3);
-        if let VariableSizeStrideNode::Size3(node) = &tree.nodes[1] {
-            assert_eq!(node.ptrbitarr.len(), 1); // 8-bit
-            assert_eq!(node.ptrbitarr[0], 0b00000000u8);
-            assert_eq!(node.ptrvec.len(), 0);
+        let node = &tree.nodes[1];
+        assert_eq!(format!("{:b}", node.ptrbitarr), "00000000");
+        assert_eq!(node.ptrvec.len(), 0);
 
-            assert_eq!(node.pfxbitarr.len(), 2); // 16-bit
-            assert_eq!(node.pfxbitarr[0], 0b00001000u8);
-            assert_eq!(node.pfxbitarr[1], 0b00000000u8);
-            assert_eq!(node.pfxvec.len(), 1);
-            assert_eq!(node.pfxvec, [4]);
-        }
+        assert_eq!(format!("{:b}", node.pfxbitarr), "0000100000000000");
+        assert_eq!(node.pfxvec.len(), 1);
+        assert_eq!(node.pfxvec, [4]);
     }
 }

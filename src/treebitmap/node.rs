@@ -1,9 +1,7 @@
 /// Based on: https://blog.nlnetlabs.nl/donkeys-mules-horses/#pointerfree
-use crate::treebitmap::bitarrops::PfxBitArrayOps;
+use fixedbitset::FixedBitSet;
 
-pub const fn max(a: usize, b: usize) -> usize {
-    [a, b][(a < b) as usize]
-}
+use crate::treebitmap::Error;
 
 /// A stride represents a sequence of one or more prefix bits where 1 <= T <= 8 is the number of bits.
 ///
@@ -43,13 +41,11 @@ pub const fn max(a: usize, b: usize) -> usize {
 ///   6   2<<5>>3=8      2<<6>>3=16
 ///   7   2<<6>>3=16     2<<7>>3=32
 ///   8   2<<7>>3=32     2<<8>>3=64
-pub struct StrideNode<const T: usize>
-where
-    [u8; max(1, 2 << (T - 1) >> 3)]: Sized,
-    [u8; max(1, 2 << T >> 3)]: Sized,
-{
-    pub ptrbitarr: [u8; max(1, 2 << (T - 1) >> 3)],
-    pub pfxbitarr: [u8; max(1, 2 << T >> 3)],
+pub struct StrideNode {
+    pub stride_size: usize,
+    
+    pub ptrbitarr: FixedBitSet,
+    pub pfxbitarr: FixedBitSet,
 
     // Use usize node indices because we index into a global node array held by the tree which may hold a large
     // number of prefixes. If we instead each node had its own collections of referenced nodes and prefixes we
@@ -58,44 +54,35 @@ where
     pub pfxvec: Vec<usize>,
 }
 
-impl<const T: usize> Default for StrideNode<T>
-where
-    [u8; max(1, 2 << (T - 1) >> 3)]: Sized,
-    [u8; max(1, 2 << T >> 3)]: Sized,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const T: usize> StrideNode<T>
-where
-    [u8; max(1, 2 << (T - 1) >> 3)]: Sized,
-    [u8; max(1, 2 << T >> 3)]: Sized,
-{
-    pub fn new() -> Self {
-        Self {
-            ptrbitarr: [0; max(1, 2 << (T - 1) >> 3)],
-            pfxbitarr: [0; max(1, 2 << T >> 3)],
-            ptrvec: Vec::new(),
-            pfxvec: Vec::new(),
+impl StrideNode {
+    pub fn new(n: u8) -> Result<Self, Error> {
+        if n > 8 {
+            Err(Error::UnsupportedStrideSize(n))
+        } else {
+            Ok(Self {
+                stride_size: n as usize,
+                ptrbitarr: FixedBitSet::with_capacity(1.max(2 << (n - 1))),
+                pfxbitarr: FixedBitSet::with_capacity(1.max(2 << n)),
+                ptrvec: Vec::new(),
+                pfxvec: Vec::new(),
+            })
         }
     }
 
     pub const fn stride_size(&self) -> usize {
-        T
+        self.stride_size
     }
 
     pub fn add_prefix(&mut self, bit_idx: usize, prefix_idx: usize) {
-        if !self.pfxbitarr.set_bit(bit_idx) {
-            let insert_idx = self.pfxbitarr.count_ones_upto(bit_idx) - 1;
+        if !self.pfxbitarr.put(bit_idx) {
+            let insert_idx = self.pfxbitarr.count_ones(0..(bit_idx+1)) - 1;
             self.pfxvec.insert(insert_idx, prefix_idx);
         }
     }
 
     pub fn add_child_node(&mut self, bit_idx: usize, node_idx: usize) {
-        if !self.ptrbitarr.set_bit(bit_idx) {
-            let insert_idx = self.ptrbitarr.count_ones_upto(bit_idx) - 1;
+        if !self.ptrbitarr.put(bit_idx) {
+            let insert_idx = self.ptrbitarr.count_ones(0..(bit_idx+1)) - 1;
             self.ptrvec.insert(insert_idx, node_idx);
         } else {
             panic!(
@@ -106,8 +93,8 @@ where
     }
 
     pub fn get_child_node_idx(&self, bit_idx: usize) -> Option<usize> {
-        if self.ptrbitarr.bit_set(bit_idx) {
-            let idx = self.ptrbitarr.count_ones_upto(bit_idx) - 1;
+        if self.ptrbitarr.contains(bit_idx) {
+            let idx = self.ptrbitarr.count_ones(0..(bit_idx+1)) - 1;
             Some(self.ptrvec[idx].into())
         } else {
             None
@@ -115,8 +102,8 @@ where
     }
 
     pub fn get_prefix_node_idx(&self, bit_idx: usize) -> Option<usize> {
-        if self.pfxbitarr.bit_set(bit_idx) {
-            let idx = self.pfxbitarr.count_ones_upto(bit_idx) - 1;
+        if self.pfxbitarr.contains(bit_idx) {
+            let idx = self.pfxbitarr.count_ones(0..(bit_idx+1)) - 1;
             Some(self.pfxvec[idx].into())
         } else {
             None
@@ -124,26 +111,11 @@ where
     }
 }
 
-impl<const T: usize> std::fmt::Debug for StrideNode<T>
-where
-    [u8; max(1, 2 << (T - 1) >> 3)]: Sized,
-    [u8; max(1, 2 << T >> 3)]: Sized,
-{
+impl std::fmt::Debug for StrideNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn format_bit_arr(iter: std::slice::Iter<u8>) -> String {
-            let mut bit_string = String::new();
-            let mut num_bytes = 0;
-            for byte in iter {
-                bit_string.push_str(&format!("{:0>8b}", byte));
-                num_bytes += 1;
-            }
-            let num_bits = num_bytes << 3;
-            format!("{:0>width$}", &bit_string, width = num_bits)
-        }
-
         f.debug_struct("StrideNode")
-            .field("ptrbitarr", &format_bit_arr(self.ptrbitarr.iter()))
-            .field("pfxbitarr", &format_bit_arr(self.pfxbitarr.iter()))
+            .field("ptrbitarr", &self.ptrbitarr)
+            .field("pfxbitarr", &self.pfxbitarr)
             .field("ptrvec", &self.ptrvec)
             .field("pfxvec", &self.pfxvec)
             .finish()
