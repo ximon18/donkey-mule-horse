@@ -2,33 +2,6 @@ use crate::treebitmap::node::StrideNode;
 
 pub type VariableSizeStrideNode = StrideNode;
 
-// #[derive(Debug)]
-// pub enum VariableSizeStrideNode {
-//     Size1(StrideNode<1>),
-//     Size2(StrideNode<2>),
-//     Size3(StrideNode<3>),
-//     Size4(StrideNode<4>),
-//     Size5(StrideNode<5>),
-//     Size6(StrideNode<6>),
-//     Size7(StrideNode<7>),
-//     Size8(StrideNode<8>),
-// }
-
-// macro_rules! with_node {
-//     ($self:ident => $member_fn:ident ( $( $arg:ident ),* )) => {
-//         match $self {
-//             VariableSizeStrideNode::Size1(sized_node) => sized_node.$member_fn($($arg),*),
-//             VariableSizeStrideNode::Size2(sized_node) => sized_node.$member_fn($($arg),*),
-//             VariableSizeStrideNode::Size3(sized_node) => sized_node.$member_fn($($arg),*),
-//             VariableSizeStrideNode::Size4(sized_node) => sized_node.$member_fn($($arg),*),
-//             VariableSizeStrideNode::Size5(sized_node) => sized_node.$member_fn($($arg),*),
-//             VariableSizeStrideNode::Size6(sized_node) => sized_node.$member_fn($($arg),*),
-//             VariableSizeStrideNode::Size7(sized_node) => sized_node.$member_fn($($arg),*),
-//             VariableSizeStrideNode::Size8(sized_node) => sized_node.$member_fn($($arg),*),
-//         }
-//     };
-// }
-
 // Generate code for calculating (pfxbitarr_bit_idx, ptrbitarr_bit_idx) results
 // equivalent to match blocks of the following form:
 //
@@ -59,42 +32,7 @@ macro_rules! bitarr_indices_from_bits {
     }};
 }
 
-// impl VariableSizeStrideNode {
 impl StrideNode {
-    // pub fn new(stride: u8) -> Result<Self, Error> {
-    //     match stride {
-    //         1 => Ok(VariableSizeStrideNode::Size1(StrideNode::<1>::new())),
-    //         2 => Ok(VariableSizeStrideNode::Size2(StrideNode::<2>::new())),
-    //         3 => Ok(VariableSizeStrideNode::Size3(StrideNode::<3>::new())),
-    //         4 => Ok(VariableSizeStrideNode::Size4(StrideNode::<4>::new())),
-    //         5 => Ok(VariableSizeStrideNode::Size5(StrideNode::<5>::new())),
-    //         6 => Ok(VariableSizeStrideNode::Size6(StrideNode::<6>::new())),
-    //         7 => Ok(VariableSizeStrideNode::Size7(StrideNode::<7>::new())),
-    //         8 => Ok(VariableSizeStrideNode::Size8(StrideNode::<8>::new())),
-    //         n => Err(Error::UnsupportedStrideSize(n)),
-    //     }
-    // }
-
-    // pub fn stride_size(&self) -> usize {
-    //     with_node!(self => stride_size())
-    // }
-
-    // pub fn add_prefix(&mut self, bit_idx: usize, prefix_idx: usize) {
-    //     with_node!(self => add_prefix(bit_idx, prefix_idx))
-    // }
-
-    // pub fn add_child_node(&mut self, bit_idx: usize, node_idx: usize) {
-    //     with_node!(self => add_child_node(bit_idx, node_idx))
-    // }
-
-    // pub fn get_child_node_idx(&self, bit_idx: usize) -> Option<usize> {
-    //     with_node!(self => get_child_node_idx(bit_idx))
-    // }
-
-    // pub fn get_prefix_node_idx(&self, bit_idx: usize) -> Option<usize> {
-    //     with_node!(self => get_prefix_node_idx(bit_idx))
-    // }
-
     /// Returns (pfxbitarr idx, ptrbitarr idx) where each idx is 0-based counting from the left.
     pub fn get_matching_bitarr_indices(&self, bits: u32, len: usize) -> (usize, usize) {
         // Do the remaining prefix bits fit in this node and if so which pfxbitarr bucket needs to be ticked

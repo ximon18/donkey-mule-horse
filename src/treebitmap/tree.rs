@@ -151,7 +151,7 @@ impl TreeBitMap {
 
 #[cfg(test)]
 mod tests {
-    use super::{TreeBitMap, VariableSizeStrideNode};
+    use super::TreeBitMap;
 
     #[test]
     fn compare_with_blog_article_data() {
