@@ -7,7 +7,6 @@
 /// use different sized types instead of variable numbers of bytes, e.g. use u64 instead of [u8; 8], so this is just an
 /// experimental approach, it is not expected to be fast enough for production use. An alternative approach might be to
 /// use associated types for the bit arrays such as u64.
-mod bitarrops;
 mod error;
 mod node;
 mod tree;
